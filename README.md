@@ -3,8 +3,7 @@
 # ynab-mcp-server
 [![smithery badge](https://smithery.ai/badge/@calebl/ynab-mcp-server)](https://smithery.ai/server/@calebl/ynab-mcp-server)
 
-A Model Context Protocol (MCP) server built with mcp-framework. This MCP provides tools
-for interacting with your YNAB budgets setup at https://ynab.com
+A Model Context Protocol (MCP) server that exposes YNAB tools over authenticated HTTP/SSE.
 
 <a href="https://glama.ai/mcp/servers/@calebl/ynab-mcp-server">
   <img width="380" height="200" src="https://glama.ai/mcp/servers/@calebl/ynab-mcp-server/badge" alt="YNAB Server MCP server" />
@@ -16,10 +15,30 @@ client, you will need to provide your personal access token as YNAB_API_TOKEN. *
 is never directly sent to the LLM.** It is stored privately in an environment variable for
 use with the YNAB api.
 
-## Setup
-Specify env variables:
-* YNAB_API_TOKEN (required)
-* YNAB_BUDGET_ID (optional)
+## HTTP/SSE Setup
+
+The server exposes an SSE stream at `GET /sse` and accepts JSON-RPC messages at
+`POST /message?sessionId=<session-id>`. Both MCP endpoints require
+`Authorization: Bearer <MCP_AUTH_TOKEN>`.
+
+Required environment variables:
+* `YNAB_API_TOKEN` - YNAB personal access token
+* `MCP_AUTH_TOKEN` - static bearer token; generate one with `openssl rand -hex 32`
+
+Optional environment variables:
+* `READ_ONLY` - set to `true` to exclude all mutation tools at startup
+* `YNAB_BUDGET_ID` - default budget ID
+* `HOST` - bind address, defaults to `0.0.0.0`
+* `PORT` - listen port, defaults to `3000`
+
+The included Docker Compose configuration sets `READ_ONLY=true`. Copy `.env.example`
+to `.env`, set both required tokens, then run:
+
+```bash
+docker compose up --build
+```
+
+`GET /healthz` is available without authentication for container health checks.
 
 ## Goal
 The goal of the project is to be able to interact with my YNAB budget via an AI conversation.
@@ -55,14 +74,10 @@ Next:
 * move off of mcp framework to use the model context protocol sdk directly?
 
 
-## Quick Start
+## Local Development
 
 ```bash
-# Install dependencies
-npm install
-
-# Build the project
-npm run build
+MCP_AUTH_TOKEN="$(openssl rand -hex 32)" YNAB_API_TOKEN="your-token" npm start
 
 ```
 
