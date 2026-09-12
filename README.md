@@ -1,240 +1,143 @@
-[![MseeP.ai Security Assessment Badge](https://mseep.net/mseep-audited.png)](https://mseep.ai/app/calebl-ynab-mcp-server)
+# YNAB MCP Server
 
-# ynab-mcp-server
-[![smithery badge](https://smithery.ai/badge/@calebl/ynab-mcp-server)](https://smithery.ai/server/@calebl/ynab-mcp-server)
+An authenticated HTTP/SSE Model Context Protocol (MCP) server for YNAB.
 
-A Model Context Protocol (MCP) server that exposes YNAB tools over authenticated HTTP/SSE.
+The server defaults to a read-only Docker deployment. Set `READ_ONLY=true` to
+exclude every tool that can modify a YNAB budget.
 
-<a href="https://glama.ai/mcp/servers/@calebl/ynab-mcp-server">
-  <img width="380" height="200" src="https://glama.ai/mcp/servers/@calebl/ynab-mcp-server/badge" alt="YNAB Server MCP server" />
-</a>
+## Requirements
 
-In order to have an AI interact with this tool, you will need to get your Personal Access Token
-from YNAB: https://api.ynab.com/#personal-access-tokens. When adding this MCP server to any
-client, you will need to provide your personal access token as YNAB_API_TOKEN. **This token
-is never directly sent to the LLM.** It is stored privately in an environment variable for
-use with the YNAB api.
+- Node.js 18 or later for local development
+- A [YNAB personal access token](https://api.ynab.com/#personal-access-tokens)
+- Docker and Docker Compose for container deployment
 
-## HTTP/SSE Setup
+## Configuration
 
-The server exposes an SSE stream at `GET /sse` and accepts JSON-RPC messages at
-`POST /message?sessionId=<session-id>`. Both MCP endpoints require
-`Authorization: Bearer <MCP_AUTH_TOKEN>`.
+| Variable | Required | Description |
+| --- | --- | --- |
+| `YNAB_API_TOKEN` | Yes | YNAB personal access token. |
+| `MCP_AUTH_TOKEN` | Yes | Static bearer token required by MCP endpoints. Generate one with `openssl rand -hex 32`. |
+| `READ_ONLY` | No | Set to `true` to disable mutation tools. Mutations are enabled when unset or any other value. |
+| `YNAB_BUDGET_ID` | No | Default YNAB budget ID. |
+| `HOST` | No | HTTP bind address. Defaults to `0.0.0.0`. |
+| `PORT` | No | HTTP listen port. Defaults to `3000`. |
 
-Required environment variables:
-* `YNAB_API_TOKEN` - YNAB personal access token
-* `MCP_AUTH_TOKEN` - static bearer token; generate one with `openssl rand -hex 32`
+Keep both tokens private. The server fails at startup if `MCP_AUTH_TOKEN` is missing.
 
-Optional environment variables:
-* `READ_ONLY` - set to `true` to exclude all mutation tools at startup
-* `YNAB_BUDGET_ID` - default budget ID
-* `HOST` - bind address, defaults to `0.0.0.0`
-* `PORT` - listen port, defaults to `3000`
+## Docker Deployment
 
-The included Docker Compose configuration sets `READ_ONLY=true`. Copy `.env.example`
-to `.env`, set both required tokens, then run:
+1. Create a local environment file from the example:
+
+```bash
+cp .env.example .env
+```
+
+2. Set `YNAB_API_TOKEN` and a high-entropy `MCP_AUTH_TOKEN` in `.env`.
+
+3. Start the server:
 
 ```bash
 docker compose up --build
 ```
 
-`GET /healthz` is available without authentication for container health checks.
-
-## Goal
-The goal of the project is to be able to interact with my YNAB budget via an AI conversation.
-There are a few primary workflows I want to enable:
-
-## Workflows:
-### First time setup
-* be prompted to select your budget from your available budgets. If you try to use another
-tool first, this prompt should happen asking you to set your default budget.
-  * Tools needed: ListBudgets
-### Manage overspent categories
-### Adding new transactions
-### Approving transactions
-### Check total monthly spending vs total income
-### Auto-distribute ready to assign funds based on category targets
-
-## Current state
-Available tools:
-* ListBudgets - lists available budgets on your account
-* BudgetSummary - provides a summary of categories that are underfunded and accounts that are low
-* GetUnapprovedTransactions - retrieve all unapproved transactions
-* CreateTransaction - creates a transaction for a specified budget and account.
-  * example prompt: `Add a transaction to my Ally account for $3.98 I spent at REI today`
-  * requires GetBudget to be called first so we know the account id
-* ApproveTransaction - approves an existing transaction in your YNAB budget
-  * requires a transaction ID to approve
-  * can be used in conjunction with GetUnapprovedTransactions to approve pending transactions
-  * After calling get unapproved transactions, prompt: `approve the transaction for $6.95 on the Apple Card`
-
-Next:
-* be able to approve multiple transactions with 1 call
-* updateCategory tool - or updateTransaction more general tool if I can get optional parameters to work correctly with zod & mcp framework
-* move off of mcp framework to use the model context protocol sdk directly?
-
+The included Compose configuration publishes port `3000` and sets `READ_ONLY=true`.
+To permit mutations, change that setting in `docker-compose.yml` or supply your
+own Compose override.
 
 ## Local Development
 
-```bash
-MCP_AUTH_TOKEN="$(openssl rand -hex 32)" YNAB_API_TOKEN="your-token" npm start
-
-```
-
-## Project Structure
-
-```
-ynab-mcp-server/
-├── src/
-│   ├── tools/        # MCP Tools
-│   └── index.ts      # Server entry point
-├── .cursor/
-│   └── rules/        # Cursor AI rules for code generation
-├── package.json
-└── tsconfig.json
-```
-
-## Adding Components
-
-The YNAB sdk describes the available api endpoints: https://github.com/ynab/ynab-sdk-js.
-
-YNAB open api specification is here: https://api.ynab.com/papi/open_api_spec.yaml. This can
-be used to prompt an AI to generate a new tool. Example prompt for Cursor Agent:
-
-```
-create a new tool based on the readme and this openapi doc: https://api.ynab.com/papi/open_api_spec.yaml
-
-The new tool should get the details for a single budget
-```
-
-You can add more tools using the CLI:
+Install dependencies and build the server:
 
 ```bash
-# Add a new tool
-mcp add tool my-tool
-
-# Example tools you might create:
-mcp add tool data-processor
-mcp add tool api-client
-mcp add tool file-handler
+npm install
+npm run build
 ```
 
-## Tool Development
+Run it with the required authentication and YNAB credentials:
 
-Example tool structure:
+```bash
+MCP_AUTH_TOKEN="$(openssl rand -hex 32)" YNAB_API_TOKEN="your-ynab-token" READ_ONLY=true npm start
+```
+
+Run the checks:
+
+```bash
+npm test -- --run
+npm run build
+```
+
+## MCP Transport
+
+This server implements the legacy MCP HTTP/SSE transport:
+
+| Endpoint | Authentication | Purpose |
+| --- | --- | --- |
+| `GET /sse` | Required | Establishes the server-sent events stream. |
+| `POST /message?sessionId=<session-id>` | Required | Sends JSON-RPC messages for the SSE session. |
+| `GET /healthz` | Not required | Returns `200 OK` for container health checks. |
+
+Send this header to both MCP endpoints:
+
+```http
+Authorization: Bearer <MCP_AUTH_TOKEN>
+```
+
+After opening `/sse`, the transport emits the message endpoint containing its
+session ID. Clients must include that `sessionId` query parameter when posting
+JSON-RPC messages.
+
+For example, an authenticated SSE connection can be opened with:
+
+```bash
+curl -N -H "Authorization: Bearer $MCP_AUTH_TOKEN" http://localhost:3000/sse
+```
+
+## Tools
+
+The following read-only tools are always registered:
+
+- `ynab_list_budgets`
+- `ynab_get_unapproved_transactions`
+- `ynab_budget_summary`
+- `ynab_list_payees`
+- `ynab_get_transactions`
+- `ynab_list_categories`
+- `ynab_list_accounts`
+- `ynab_list_scheduled_transactions`
+- `ynab_list_months`
+
+These mutation tools are registered only when `READ_ONLY` is unset or is not
+exactly `true`:
+
+- `ynab_create_transaction`
+- `ynab_approve_transaction`
+- `ynab_update_category_budget`
+- `ynab_update_transaction`
+- `ynab_bulk_approve_transactions`
+- `ynab_delete_transaction`
+- `ynab_import_transactions`
+
+## Adding Tools
+
+Each tool module in `src/tools/` exports a name, description, Zod input schema,
+and `execute` function. Register it in `src/server.ts`, keeping read-only tools
+outside the `if (!isReadOnly)` block and mutation tools inside it.
 
 ```typescript
-import { MCPTool } from "mcp-framework";
-import { z } from "zod";
+import * as MyTool from "./tools/MyTool.js";
 
-interface MyToolInput {
-  message: string;
-}
-
-class MyTool extends MCPTool<MyToolInput> {
-  name = "my_tool";
-  description = "Describes what your tool does";
-
-  schema = {
-    message: {
-      type: z.string(),
-      description: "Description of this input parameter",
-    },
-  };
-
-  async execute(input: MyToolInput) {
-    // Your tool logic here
-    return `Processed: ${input.message}`;
-  }
-}
-
-export default MyTool;
+server.registerTool(MyTool.name, {
+  title: "My Tool",
+  description: MyTool.description,
+  inputSchema: MyTool.inputSchema,
+}, async (input) => MyTool.execute(input, api));
 ```
 
-## Publishing to npm
+Add corresponding tests under `src/tests/` and run the local checks before
+opening a pull request.
 
-1. Update your package.json:
-   - Ensure `name` is unique and follows npm naming conventions
-   - Set appropriate `version`
-   - Add `description`, `author`, `license`, etc.
-   - Check `bin` points to the correct entry file
+## CI
 
-2. Build and test locally:
-   ```bash
-   npm run build
-   npm link
-   ynab-mcp-server  # Test your CLI locally
-   ```
-
-3. Login to npm (create account if necessary):
-   ```bash
-   npm login
-   ```
-
-4. Publish your package:
-   ```bash
-   npm publish
-   ```
-
-After publishing, users can add it to their claude desktop client (read below) or run it with npx
-
-
-## Using with Claude Desktop
-
-### Installing via Smithery
-
-To install YNAB Budget Assistant for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@calebl/ynab-mcp-server):
-
-```bash
-npx -y @smithery/cli install @calebl/ynab-mcp-server --client claude
-```
-
-### Local Development
-
-Add this configuration to your Claude Desktop config file:
-
-**MacOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-**Windows**: `%APPDATA%/Claude/claude_desktop_config.json`
-
-```json
-{
-  "mcpServers": {
-    "ynab-mcp-server": {
-      "command": "node",
-      "args":["/absolute/path/to/ynab-mcp-server/dist/index.js"]
-    }
-  }
-}
-```
-
-### After Publishing
-
-Add this configuration to your Claude Desktop config file:
-
-**MacOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-**Windows**: `%APPDATA%/Claude/claude_desktop_config.json`
-
-```json
-{
-  "mcpServers": {
-    "ynab-mcp-server": {
-      "command": "npx",
-      "args": ["ynab-mcp-server"]
-    }
-  }
-}
-```
-
-### Other MCP Clients
-Check https://modelcontextprotocol.io/clients for other available clients.
-
-## Building and Testing
-
-1. Make changes to your tools
-2. Run `npm run build` to compile
-3. The server will automatically load your tools on startup
-
-## Learn More
-
-- [MCP Framework Github](https://github.com/QuantGeekDev/mcp-framework)
-- [MCP Framework Docs](https://mcp-framework.com)
+Pull requests targeting `main` run the Vitest suite on Node.js 22 and 24. A
+separate GitHub Actions workflow also builds the Docker image, validating the
+container packaging without publishing an image.
