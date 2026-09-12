@@ -1,7 +1,7 @@
 services:
   ynab-mcp:
     build: .
-    container_name: ynab-mcp-sse
+    container_name: ynab-mcp-server
     restart: unless-stopped
     ports:
       - "3000:3000"

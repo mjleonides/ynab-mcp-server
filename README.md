@@ -1,6 +1,6 @@
 # YNAB MCP Server
 
-An authenticated HTTP/SSE Model Context Protocol (MCP) server for YNAB.
+An authenticated Streamable HTTP Model Context Protocol (MCP) server for YNAB.
 
 The server defaults to a read-only Docker deployment. Set `READ_ONLY=true` to
 exclude every tool that can modify a YNAB budget.
@@ -68,29 +68,46 @@ npm run build
 
 ## MCP Transport
 
-This server implements the legacy MCP HTTP/SSE transport:
+This server implements the MCP Streamable HTTP transport:
 
 | Endpoint | Authentication | Purpose |
 | --- | --- | --- |
-| `GET /sse` | Required | Establishes the server-sent events stream. |
-| `POST /message?sessionId=<session-id>` | Required | Sends JSON-RPC messages for the SSE session. |
+| `POST /mcp` | Required | Initializes a session and sends client messages. |
+| `GET /mcp` | Required | Opens a server-sent events stream for an existing session. |
+| `DELETE /mcp` | Required | Terminates an existing session. |
 | `GET /healthz` | Not required | Returns `200 OK` for container health checks. |
 
-Send this header to both MCP endpoints:
+Send this header to every `/mcp` request:
 
 ```http
 Authorization: Bearer <MCP_AUTH_TOKEN>
 ```
 
-After opening `/sse`, the transport emits the message endpoint containing its
-session ID. Clients must include that `sessionId` query parameter when posting
-JSON-RPC messages.
+The initial `initialize` request creates a session. The server returns its ID in
+the `Mcp-Session-Id` response header; clients must include that header on every
+subsequent `/mcp` request.
 
-For example, an authenticated SSE connection can be opened with:
+## Open WebUI
 
-```bash
-curl -N -H "Authorization: Bearer $MCP_AUTH_TOKEN" http://localhost:3000/sse
+In Open WebUI v0.6.31 or later, add an external tool server using:
+
+| Setting | Value |
+| --- | --- |
+| Type | `MCP (Streamable HTTP)` |
+| Server URL | `http://<server-host>:3000/mcp` |
+| Authentication | `Bearer` |
+| Key | Value of `MCP_AUTH_TOKEN` |
+
+When Open WebUI and this server run in separate Docker containers, connect both
+to a shared user-defined Docker network and use the MCP service hostname. When
+Open WebUI runs in Docker Desktop and this server runs on the host, use:
+
+```text
+http://host.docker.internal:3000/mcp
 ```
+
+On Linux Docker hosts, prefer a shared user-defined network rather than host
+network aliases. The Docker health check continues to use `/healthz`.
 
 ## Tools
 

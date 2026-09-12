@@ -18,7 +18,7 @@ async function main() {
         else {
             console.warn("WARNING: READ_ONLY is false or unset. Mutation tools are enabled.");
         }
-        console.log(`YNAB MCP server listening on http://${host}:${port}/sse`);
+        console.log(`YNAB MCP server listening on http://${host}:${port}/mcp`);
     });
 }
 main().catch((error) => {
